@@ -16,7 +16,18 @@ def split_documents(docs):
         chunk_size=1000,
         chunk_overlap=200
     )
-    return splitter.split_documents(docs)
+
+    chunks = splitter.split_documents(docs)
+
+    for i, chunk in enumerate(chunks):
+        # Always overwrite to guarantee consistency
+        chunk.metadata["chunk_id"] = i
+
+        # Normalize source path
+        source = chunk.metadata.get("source", "unknown_document")
+        chunk.metadata["source"] = source.replace("\\", "/")
+
+    return chunks
 
 def build_vectorstore(chunks):
     embeddings = get_embeddings()
@@ -33,6 +44,15 @@ def load_vectorstore():
         persist_directory=PERSIST_DIR,
         embedding_function=embeddings
     )
+
+def get_retriever(k: int = 5):
+    """
+    Returns a retriever for the persisted Chroma vector store.
+    This is used by agent tools and other services that need retrieval
+    without directly handling vector store setup.
+    """
+    vectorstore = load_vectorstore()
+    return vectorstore.as_retriever(search_kwargs={"k": k})
 
 def ask_question(question: str):
     vectorstore = load_vectorstore()
