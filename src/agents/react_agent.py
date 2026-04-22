@@ -4,6 +4,7 @@ from langchain_core.messages import HumanMessage
 from src.utils import get_llm
 from src.rag_pipeline import get_retriever
 from src.tools.tools import get_tools
+from src.services.logger import log_research
 
 
 SYSTEM_PROMPT = """
@@ -51,14 +52,14 @@ def build_agent():
 
 
 def run_research_query(query: str):
-    """
-    Run a user query through the ReAct agent and return the full result.
-    """
     agent = build_agent()
 
     result = agent.invoke(
         {"messages": [HumanMessage(content=query)]}
     )
+
+    # Log the query + result
+    log_research(query, result)
 
     return result
 

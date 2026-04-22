@@ -1,0 +1,3 @@
+timestamp,query,tool_used,response_length
+2026-04-22T16:06:37.237432,Summarize the main ideas in my uploaded documents.,document_retriever,1014
+2026-04-22T16:08:59.599368,Summarize the main ideas in my uploaded documents.,document_retriever,962
