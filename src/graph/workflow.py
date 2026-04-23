@@ -183,3 +183,35 @@ def retrieval_node(state: AgentState, retriever) -> dict:
         "route_log": route_log,
         "errors": errors,
     }
+
+from langgraph.graph import StateGraph, START, END
+
+from src.agents.planner import planner_node
+from src.agents.researcher import researcher_node
+from src.agents.synthesizer import synthesizer_node
+from src.graph.state import AgentState
+
+
+def build_workflow(retriever):
+    """
+    Build and compile the AutoResearcher LangGraph workflow.
+    """
+
+    graph = StateGraph(AgentState)
+
+    def retrieval_step(state: AgentState):
+        return retrieval_node(state, retriever)
+
+    graph.add_node("planner", planner_node)
+    graph.add_node("retrieve", retrieval_step)
+    graph.add_node("research", researcher_node)
+    graph.add_node("synthesize", synthesizer_node)
+
+    graph.add_edge(START, "planner")
+    graph.add_edge("planner", "retrieve")
+    graph.add_edge("retrieve", "research")
+    graph.add_edge("research", "synthesize")
+    graph.add_edge("synthesize", END)
+
+    app = graph.compile()
+    return app
