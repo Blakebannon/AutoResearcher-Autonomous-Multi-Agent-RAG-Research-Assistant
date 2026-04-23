@@ -5,34 +5,37 @@ from pathlib import Path
 LOG_FILE = Path("research_logs.csv")
 
 
-def log_research(query: str, result: dict):
+def log_research(query: str, state: dict):
     """
-    Logs each research query and metadata to a CSV file.
-    Supports multiple tool calls per run.
+    Logs multi-agent workflow data from the final state.
     """
 
-    messages = result.get("messages", [])
+    tasks = state.get("tasks", [])
+    route_log = state.get("route_log", [])
+    evidence = state.get("evidence", [])
+    errors = state.get("errors", [])
+    final_answer = state.get("final_answer", "")
+    research_summary = state.get("research_summary", "")
 
-    # Collect ALL tools used (not just the first one)
-    tools_used = []
-
-    for msg in messages:
-        if hasattr(msg, "tool_calls") and msg.tool_calls:
-            for call in msg.tool_calls:
-                tools_used.append(call.get("name", "unknown_tool"))
-
-    tool_used_str = ",".join(tools_used) if tools_used else "none"
-
-    # Get final answer safely
-    final_answer = ""
-    if messages and hasattr(messages[-1], "content"):
-        final_answer = messages[-1].content or ""
+    # Extract tool usage from route log
+    tools_used = set()
+    for route in route_log:
+        if route.startswith("WEB"):
+            tools_used.add("web_search_tool")
+        elif route.startswith("LOCAL"):
+            tools_used.add("document_retriever")
 
     log_entry = {
         "timestamp": datetime.now().isoformat(),
         "query": query,
-        "tool_used": tool_used_str,
-        "response_length": len(final_answer),
+        "planner_task_count": len(tasks),
+        "planner_tasks": " | ".join([t["subquestion"] for t in tasks]),
+        "route_log": " | ".join(route_log),
+        "tools_used": ",".join(tools_used) if tools_used else "none",
+        "evidence_count": len(evidence),
+        "research_summary_length": len(research_summary),
+        "final_answer_length": len(final_answer),
+        "error_count": len(errors),
     }
 
     file_exists = LOG_FILE.exists()

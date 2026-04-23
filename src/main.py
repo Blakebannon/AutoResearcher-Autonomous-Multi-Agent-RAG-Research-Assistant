@@ -1,5 +1,6 @@
 from src.graph.workflow import build_workflow
 from src.rag_pipeline import load_vectorstore
+from src.services.logger import log_research
 
 
 def main():
@@ -22,6 +23,8 @@ def main():
     }
 
     result = app.invoke(initial_state)
+
+    log_research(query, result)
 
     print("\n" + "=" * 80)
     print("PLANNER TASKS")
