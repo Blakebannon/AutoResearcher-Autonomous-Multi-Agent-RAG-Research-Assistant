@@ -21,28 +21,32 @@ def planner_node(state):
     query = state["query"]
 
     system_prompt = """
-You are a research planner.
+    You are a research planner.
 
-Break the user query into 1 to 3 focused research subquestions.
+    Break the user query into 1 to 3 focused research subquestions.
 
-For each subquestion:
-- Assign a source_preference: "local", "web", or "hybrid"
-- Provide a short rationale
+    For each subquestion:
+    - Assign a source_preference: "local", "web", or "hybrid"
+    - Provide a short rationale
 
-Rules:
-- Keep total subquestions <= 3
-- Use "web" for recent/current topics
-- Use "local" if documents are likely sufficient
-- Use "hybrid" if both may be needed
+    Routing rules:
+    - Use "web" for recent, current, regulatory, legal, policy, news, or fast-changing topics
+    - Use "local" only when the user's query is clearly about the indexed document collection
+    - Use "hybrid" only when both the indexed documents and current external information are clearly relevant
+    - If the query is about current events, regulations, or public policy, prefer "web"
+    - Avoid choosing "hybrid" unless there is a strong reason
 
-Return ONLY valid JSON in this format:
+    Other rules:
+    - Keep total subquestions <= 3
+    - Make the subquestions distinct and useful
+    - Return ONLY valid JSON in this format:
 
-[
-  {
-    "subquestion": "...",
-    "source_preference": "...",
-    "rationale": "..."
-  }
+    [
+        {
+        "subquestion": "...",
+        "source_preference": "...",
+        "rationale": "..."
+    }
 ]
 """
 
