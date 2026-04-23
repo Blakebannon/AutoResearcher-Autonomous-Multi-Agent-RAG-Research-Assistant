@@ -1,3 +1,8 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import json
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -6,7 +11,8 @@ def get_llm():
     return ChatGroq(
         model="llama-3.3-70b-versatile",
         temperature=0,
-        max_tokens=1000
+        max_tokens=1000,
+        api_key=os.getenv("GROQ_API_KEY")
     )
 
 def planner_node(state):
