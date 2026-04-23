@@ -24,21 +24,41 @@ def main():
     result = app.invoke(initial_state)
 
     print("\n" + "=" * 80)
+    print("PLANNER TASKS")
+    print("=" * 80)
+    for i, task in enumerate(result.get("tasks", []), start=1):
+        print(f"{i}. {task['subquestion']}")
+        print(f"   source_preference: {task['source_preference']}")
+        print(f"   rationale: {task['rationale']}")
+
+    print("\n" + "=" * 80)
+    print("EVIDENCE COUNT")
+    print("=" * 80)
+    print(len(result.get("evidence", [])))
+
+    print("\n" + "=" * 80)
+    print("RESEARCH SUMMARY PREVIEW")
+    print("=" * 80)
+    summary = result.get("research_summary", "")
+    print(summary[:1200] + ("..." if len(summary) > 1200 else ""))
+
+    print("\n" + "=" * 80)
     print("FINAL ANSWER")
     print("=" * 80)
-    print(result["final_answer"])
+    print(result.get("final_answer", ""))
 
     print("\n" + "=" * 80)
     print("ROUTE LOG")
     print("=" * 80)
-    for item in result["route_log"]:
+    for item in result.get("route_log", []):
         print("-", item)
 
-    if result["errors"]:
+    errors = result.get("errors", [])
+    if errors:
         print("\n" + "=" * 80)
         print("ERRORS")
         print("=" * 80)
-        for err in result["errors"]:
+        for err in errors:
             print("-", err)
 
 
