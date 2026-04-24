@@ -1,3 +1,5 @@
+from src.graph.state import AgentState
+
 def is_summary_query(query: str) -> bool:
     return any(
         keyword in query.lower()
