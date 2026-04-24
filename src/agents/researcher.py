@@ -1,5 +1,29 @@
+import os
+from dotenv import load_dotenv
+
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_groq import ChatGroq
+
 from src.graph.state import AgentState
 
+load_dotenv()
+
+
+# -----------------------------
+# LLM 
+# -----------------------------
+def get_researcher_llm():
+    return ChatGroq(
+        model="llama-3.3-70b-versatile",
+        temperature=0.2,
+        max_tokens=1800,
+        api_key=os.getenv("GROQ_API_KEY"),
+    )
+
+
+# -----------------------------
+# Query Intent
+# -----------------------------
 def is_summary_query(query: str) -> bool:
     return any(
         keyword in query.lower()
@@ -7,6 +31,9 @@ def is_summary_query(query: str) -> bool:
     )
 
 
+# -----------------------------
+# Researcher Node
+# -----------------------------
 def researcher_node(state: AgentState) -> dict:
     llm = get_researcher_llm()
 
