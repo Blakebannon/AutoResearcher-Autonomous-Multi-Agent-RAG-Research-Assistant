@@ -1,6 +1,60 @@
+# =========================
+# Python
+# =========================
 __pycache__/
-.env
-*.pyc
-data/*.pdf
-chroma_db/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Virtual environments
 venv/
+.venv/
+env/
+ENV/
+
+# =========================
+# Environment variables / secrets
+# =========================
+.env
+.env.*
+.streamlit/secrets.toml
+
+# =========================
+# Data + vector stores (DO NOT COMMIT)
+# =========================
+data/*
+!data/.gitkeep
+
+chroma_db/*
+!chroma_db/.gitkeep
+
+reports/*
+!reports/.gitkeep
+
+# Logs / outputs
+research_logs.csv
+evaluation_logs.csv
+*.log
+
+# =========================
+# Caches
+# =========================
+.cache/
+.pytest_cache/
+.mypy_cache/
+
+# =========================
+# OS / Editor junk
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# =========================
+# Misc
+# =========================
+*.sqlite3
+*.db
