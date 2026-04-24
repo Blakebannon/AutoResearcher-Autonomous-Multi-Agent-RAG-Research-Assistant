@@ -3,13 +3,38 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 
 from src.utils import get_embeddings, get_llm
+from src.utils.paths import DATA_DIR, CHROMA_DIR
 
-PERSIST_DIR = "chroma_db"
+from src.utils.paths import CHROMA_DIR
+if not CHROMA_DIR.exists() or not any(CHROMA_DIR.iterdir()):
+    st.warning("No vector database found. Please upload and index documents.")
 
-def load_documents(data_dir="data"):
-    loader = PyPDFDirectoryLoader(data_dir)
+def load_documents():
+    loader = PyPDFDirectoryLoader(str(DATA_DIR))
     docs = loader.load()
     return docs
+
+def vectorstore_exists() -> bool:
+    """
+    Checks if Chroma DB exists and has data.
+    """
+    return CHROMA_DIR.exists() and any(CHROMA_DIR.iterdir())
+
+def get_or_create_vectorstore():
+    """
+    Loads vectorstore if it exists, otherwise rebuilds from documents.
+    """
+    if not vectorstore_exists():
+        docs = load_documents()
+
+        if not docs:
+            raise ValueError("No documents found to build vectorstore.")
+
+        chunks = split_documents(docs)
+        return build_vectorstore(chunks)
+
+    return load_vectorstore()
+
 
 def split_documents(docs):
     splitter = RecursiveCharacterTextSplitter(
@@ -20,47 +45,48 @@ def split_documents(docs):
     chunks = splitter.split_documents(docs)
 
     for i, chunk in enumerate(chunks):
-        # Always overwrite to guarantee consistency
         chunk.metadata["chunk_id"] = i
-
-        # Normalize source path
         source = chunk.metadata.get("source", "unknown_document")
         chunk.metadata["source"] = source.replace("\\", "/")
 
     return chunks
 
+
 def build_vectorstore(chunks):
     embeddings = get_embeddings()
+
     vectorstore = Chroma.from_documents(
         documents=chunks,
         embedding=embeddings,
-        persist_directory=PERSIST_DIR
+        persist_directory=str(CHROMA_DIR) 
     )
+
     return vectorstore
+
 
 def load_vectorstore():
     embeddings = get_embeddings()
+
     return Chroma(
-        persist_directory=PERSIST_DIR,
+        persist_directory=str(CHROMA_DIR), 
         embedding_function=embeddings
     )
 
+
 def get_retriever(k: int = 5):
-    """
-    Returns a retriever for the persisted Chroma vector store.
-    This is used by agent tools and other services that need retrieval
-    without directly handling vector store setup.
-    """
-    vectorstore = load_vectorstore()
+    vectorstore = get_or_create_vectorstore()
     return vectorstore.as_retriever(search_kwargs={"k": k})
 
+
 def ask_question(question: str):
-    vectorstore = load_vectorstore()
+    vectorstore = get_or_create_vectorstore()
     retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+
     docs = retriever.invoke(question)
     context = "\n\n".join([d.page_content for d in docs])
 
     llm = get_llm()
+
     prompt = f"""
     Answer ONLY using the context below.
     If the answer is not in the context, say "I don't know."
@@ -71,4 +97,5 @@ def ask_question(question: str):
     Question:
     {question}
     """
+
     return llm.invoke(prompt).content

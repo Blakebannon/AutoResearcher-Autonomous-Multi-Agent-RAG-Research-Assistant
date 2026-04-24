@@ -3,6 +3,9 @@ from pathlib import Path
 
 from src.rag_pipeline import load_documents, split_documents, build_vectorstore
 from src.services.research_service import research
+from src.config import validate_required_keys
+from src.utils.paths import ensure_directories
+from src.utils.paths import DATA_DIR
 
 
 st.set_page_config(
@@ -10,6 +13,18 @@ st.set_page_config(
     page_icon="📚",
     layout="wide",
 )
+
+missing_keys = validate_required_keys()
+
+if missing_keys:
+    st.error(
+        "Missing required environment variables: "
+        + ", ".join(missing_keys)
+        + ". Add them to your local .env file or Streamlit Cloud secrets."
+    )
+    st.stop()
+
+ensure_directories()
 
 st.title("📚 AutoResearcher")
 st.caption("Autonomous multi-agent research assistant powered by RAG + LangGraph")
@@ -74,8 +89,8 @@ def build_markdown_report(result: dict) -> str:
     return "\n".join(lines)
 
 
-def save_uploaded_files(uploaded_files, upload_dir: str = "data") -> list[str]:
-    upload_path = Path(upload_dir)
+def save_uploaded_files(uploaded_files) -> list[str]:
+    upload_path = DATA_DIR
     upload_path.mkdir(parents=True, exist_ok=True)
 
     saved_files = []
