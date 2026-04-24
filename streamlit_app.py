@@ -7,6 +7,9 @@ from src.config import validate_required_keys
 from src.app_utils.paths import ensure_directories
 from src.app_utils.paths import DATA_DIR, CHROMA_DIR
 
+if not CHROMA_DIR.exists() or not any(CHROMA_DIR.iterdir()):
+    st.warning("No vector database found. Please upload and index documents.")
+
 
 st.set_page_config(
     page_title="AutoResearcher",
