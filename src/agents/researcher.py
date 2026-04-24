@@ -1,20 +1,7 @@
-import os
-
-from dotenv import load_dotenv
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_groq import ChatGroq
-
-from src.graph.state import AgentState
-
-load_dotenv()
-
-
-def get_researcher_llm():
-    return ChatGroq(
-        model="llama-3.3-70b-versatile",
-        temperature=0.2,
-        max_tokens=1800,
-        api_key=os.getenv("GROQ_API_KEY"),
+def is_summary_query(query: str) -> bool:
+    return any(
+        keyword in query.lower()
+        for keyword in ["summarize", "summary", "overview", "high level"]
     )
 
 
@@ -26,18 +13,60 @@ def researcher_node(state: AgentState) -> dict:
     evidence_context = state.get("evidence_context", "")
     errors = state.get("errors", [])
 
-    system_prompt = """
+    summary_mode = is_summary_query(query)
+
+    if summary_mode:
+        system_prompt = """
 You are the research agent in a multi-agent RAG system.
 
-Your job is to analyze the provided evidence and produce a structured research summary.
+The user is asking for a FULL DOCUMENT SUMMARY.
+
+Your job:
+- Synthesize ALL available evidence into a cohesive understanding of the entire document.
+- Do NOT focus on a single section.
+- Identify major themes, topics, and conclusions across the document.
 
 Rules:
 - Use ONLY the provided evidence.
 - Do NOT invent facts.
-- Preserve citation IDs exactly as shown, such as [doc_1] or [web_2].
+- Preserve citation IDs exactly (e.g., [doc_1], [web_2]).
+- Combine information across multiple chunks.
+- If the document appears incomplete, say so.
+
+Output format:
+
+## Research Summary
+
+## Document Overview
+High-level description of the document’s purpose and scope.
+
+## Key Themes
+- Theme with citations
+- Theme with citations
+
+## Key Findings
+- Important insight with citations
+- Important insight with citations
+
+## Evidence Gaps
+- Missing or insufficient coverage
+
+## Recommended Answer Direction
+Explain how the final summary should be structured.
+"""
+    else:
+        system_prompt = """
+You are the research agent in a multi-agent RAG system.
+
+Your job is to analyze the provided evidence and produce structured research notes.
+
+Rules:
+- Use ONLY the provided evidence.
+- Do NOT invent facts.
+- Preserve citation IDs exactly as shown.
 - Every major factual claim should include at least one evidence ID.
 - If evidence is weak, incomplete, or conflicting, say so.
-- Do not produce the final answer. Produce research notes for the synthesizer.
+- Do not produce the final answer.
 
 Output format:
 
@@ -51,7 +80,7 @@ Output format:
 - Missing or insufficient evidence
 
 ## Recommended Answer Direction
-Briefly explain what the final answer should emphasize.
+Explain what the final answer should emphasize.
 """
 
     human_prompt = f"""

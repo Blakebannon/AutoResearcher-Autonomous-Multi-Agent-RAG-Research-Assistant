@@ -9,21 +9,33 @@ from langchain_chroma import Chroma
 from src.utils import get_embeddings, get_llm
 from src.app_utils.paths import DATA_DIR, CHROMA_DIR
 
+
+# -----------------------------
+# Query Intent Detection
+# -----------------------------
+def is_summary_query(query: str) -> bool:
+    return any(
+        keyword in query.lower()
+        for keyword in ["summarize", "summary", "overview", "high level"]
+    )
+
+
+# -----------------------------
+# Document Loading
+# -----------------------------
 def load_documents():
     loader = PyPDFDirectoryLoader(str(DATA_DIR))
-    docs = loader.load()
-    return docs
+    return loader.load()
 
+
+# -----------------------------
+# Vectorstore Management
+# -----------------------------
 def vectorstore_exists() -> bool:
-    """
-    Checks if Chroma DB exists and has data.
-    """
     return CHROMA_DIR.exists() and any(CHROMA_DIR.iterdir())
 
+
 def get_or_create_vectorstore():
-    """
-    Loads vectorstore if it exists, otherwise rebuilds from documents.
-    """
     if not vectorstore_exists():
         docs = load_documents()
 
@@ -36,6 +48,9 @@ def get_or_create_vectorstore():
     return load_vectorstore()
 
 
+# -----------------------------
+# Chunking
+# -----------------------------
 def split_documents(docs):
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
@@ -52,35 +67,44 @@ def split_documents(docs):
     return chunks
 
 
+# -----------------------------
+# Vectorstore Build / Load
+# -----------------------------
 def build_vectorstore(chunks):
     embeddings = get_embeddings()
 
-    vectorstore = Chroma.from_documents(
+    return Chroma.from_documents(
         documents=chunks,
         embedding=embeddings,
-        persist_directory=str(CHROMA_DIR) 
+        persist_directory=str(CHROMA_DIR)
     )
-
-    return vectorstore
 
 
 def load_vectorstore():
     embeddings = get_embeddings()
 
     return Chroma(
-        persist_directory=str(CHROMA_DIR), 
+        persist_directory=str(CHROMA_DIR),
         embedding_function=embeddings
     )
 
 
-def get_retriever(k: int = 5):
+# -----------------------------
+# Retriever (UPDATED)
+# -----------------------------
+def get_retriever(query: str, default_k: int = 4):
     vectorstore = get_or_create_vectorstore()
+
+    k = 10 if is_summary_query(query) else default_k
+
     return vectorstore.as_retriever(search_kwargs={"k": k})
 
 
+# -----------------------------
+# Simple QA (UPDATED)
+# -----------------------------
 def ask_question(question: str):
-    vectorstore = get_or_create_vectorstore()
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+    retriever = get_retriever(question)
 
     docs = retriever.invoke(question)
     context = "\n\n".join([d.page_content for d in docs])
@@ -88,14 +112,18 @@ def ask_question(question: str):
     llm = get_llm()
 
     prompt = f"""
-    Answer ONLY using the context below.
-    If the answer is not in the context, say "I don't know."
+You are answering a question using retrieved document context.
 
-    Context:
-    {context}
+If the question asks for a summary:
+- Provide a high-level synthesis across ALL content.
 
-    Question:
-    {question}
-    """
+If the answer is not in the context, say "I don't know."
+
+Context:
+{context}
+
+Question:
+{question}
+"""
 
     return llm.invoke(prompt).content

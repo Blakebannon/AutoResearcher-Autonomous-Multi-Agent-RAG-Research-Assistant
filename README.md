@@ -1,40 +1,49 @@
-# AutoResearcher: Autonomous Multi-Agent RAG Research Assistant - Day 0 Plan and Roadmap
+# AutoResearcher
 
-**Tagline:** Ask any question → get a fully cited, hallucination-resistant research report with custom documents + live web fallback.
+🔗 Live Demo: https://autoresearcher-autonomous-multi-agent-rag-research-assistant-6.streamlit.app/
 
-Built with LangGraph, LangChain, Chroma, and Groq (or Ollama).  
-Part of my journey into Generative AI Engineering (IBM Data Science + IBM RAG & Agentic AI Certified).
+AutoResearcher is an autonomous multi-agent research system built with LangGraph, hybrid retrieval (local + web), evidence tracking, self-critique, and LLM-as-judge evaluation.
 
-## Features (planned)
-- Multi-agent workflow (Planner, Retriever, Researcher, Synthesizer, Critic)
-- Advanced hybrid RAG + web search
-- Self-critique loop for reliability
-- Streamlit UI + report export
+## Key Features
 
-## Current Status (Week 1)
-- Basic RAG pipeline with document upload and querying working
-- Live demo: [add link after deployment]
+- Multi-agent workflow (Planner → Retrieval → Researcher → Synthesizer → Critic → Judge)
+- Hybrid retrieval (local documents + web search)
+- Evidence-based answers with citations
+- Self-correcting reasoning loop
+- LLM-as-judge evaluation (groundedness, clarity, completeness)
+- Full workflow trace + observability UI
 
-See `docs/` for architecture and weekly progress.
+## System Architecture
 
-# AutoResearcher: Autonomous Multi-Agent RAG Research Assistant - Day 6 Project update after 1 Week.
+User Query  
+→ Planner  
+→ Retrieval (Local / Web / Hybrid)  
+→ Reranker  
+→ Researcher  
+→ Synthesizer  
+→ Critic  
+→ Revision Loop (if needed)  
+→ Judge  
+→ Final Answer + Metrics
 
-## Overview
-AutoResearcher is an AI-powered research assistant designed to summarize and extract insights from PDF documents using Retrieval-Augmented Generation (RAG).
+## Tech Stack
 
-## Current Capabilities
-- Upload and index PDF documents
-- Ask questions about indexed documents
-- Retrieve relevant chunks using ChromaDB
-- Generate answers with Groq + LangChain
-- Run a local UI with Streamlit
+- LangChain + LangGraph
+- ChromaDB (vector store)
+- Sentence Transformers (embeddings)
+- Tavily (web search)
+- Streamlit (UI + deployment)
 
-## Installation
+## Local Setup
 
 ```bash
-python -m venv venv
-venv\Scripts\activate
+git clone <repo>
+cd AutoResearcher
 pip install -r requirements.txt
 
-GROQ_API_KEY=your_key_here
+# create .env
+GROQ_API_KEY=...
+TAVILY_API_KEY=...
+
+streamlit run streamlit_app.py
 
