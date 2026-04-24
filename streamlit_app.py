@@ -4,8 +4,8 @@ from pathlib import Path
 from src.rag_pipeline import load_documents, split_documents, build_vectorstore
 from src.services.research_service import research
 from src.config import validate_required_keys
-from src.utils.paths import ensure_directories
-from src.utils.paths import DATA_DIR
+from src.app_utils.paths import ensure_directories
+from src.app_utils.paths import DATA_DIR, CHROMA_DIR
 
 
 st.set_page_config(
