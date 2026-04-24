@@ -35,7 +35,7 @@ def main():
 
     app = build_workflow(retriever)
 
-    query = "What are the latest AI regulations in the United States in 2026?"
+    query = "How will AI regulations in the US impact startups, consumers, and long-term innovation?"
 
     initial_state = {
         "query": query,
@@ -46,6 +46,9 @@ def main():
         "route_log": [],
         "errors": [],
         "iteration": 0,
+        "max_iterations": 1,
+        "needs_revision": False,
+        "critic_feedback": "",
     }
 
     section("STREAMING WORKFLOW")
@@ -81,6 +84,15 @@ def main():
                 print("Errors:")
                 for err in node_output["errors"]:
                     print(f"- {err}")
+            if "needs_revision" in node_output:
+                print(f"Needs revision: {node_output['needs_revision']}")
+
+            if "critic_feedback" in node_output:
+                print("Critic feedback:")
+                print(node_output["critic_feedback"])
+
+            if "iteration" in node_output:
+                print(f"Iteration: {node_output['iteration']}")
 
     # Run once more for clean final state + logging.
     result = app.invoke(initial_state)
@@ -103,6 +115,12 @@ def main():
 
     section("ROUTE LOG")
     print_route_log(result.get("route_log", []))
+
+    section("CRITIC REVIEW")
+    print(f"Needs revision: {result.get('needs_revision', False)}")
+    print(f"Iteration count: {result.get('iteration', 0)}")
+    print("Critic feedback:")
+    print(result.get("critic_feedback", ""))
 
     errors = result.get("errors", [])
     if errors:
