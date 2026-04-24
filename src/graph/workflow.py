@@ -13,6 +13,7 @@ from src.agents.critic import critic_node
 from src.agents.planner import planner_node
 from src.agents.researcher import researcher_node
 from src.agents.synthesizer import synthesizer_node
+from src.retrieval.reranker import rerank_evidence
 from src.graph.state import AgentState
 from src.tools.tools import (
     create_document_retriever_tool,
@@ -244,6 +245,16 @@ def retrieval_node(state: AgentState, retriever) -> dict:
     all_evidence = dedupe_evidence(all_evidence)
     all_evidence = renumber_evidence(all_evidence)
 
+    #Week 5: rerank evidence before passing it downstream
+    try:
+        all_evidence = rerank_evidence(
+            query=state["query"],
+            evidence_items=all_evidence,
+            top_k=8,
+        )
+    except Exception as e:
+        errors.append(f"Reranking failed: {str(e)}")
+
     evidence_context = format_evidence_list_for_prompt(all_evidence)
 
     return {
@@ -269,54 +280,52 @@ def revision_node(state: AgentState) -> dict:
     query = state["query"]
     final_answer = state["final_answer"]
     critic_feedback = state["critic_feedback"]
-    evidence = state["evidence"]
+    evidence_context = state.get("evidence_context", "")
+    evidence = state.get("evidence", [])
     iteration = state.get("iteration", 0)
 
-    compact_evidence = []
+    source_lines = []
 
-    for item in evidence[:8]:
+    for item in evidence:
         if isinstance(item, Evidence):
-            compact_evidence.append(
-                {
-                    "evidence_id": item.evidence_id,
-                    "source_type": item.source_type,
-                    "title": item.title,
-                    "url": item.url,
-                    "page": item.page,
-                    "chunk_id": item.chunk_id,
-                    "content_preview": item.content[:400],
-                }
-            )
-        else:
-            compact_evidence.append(
-                {
-                    "source": item.get("source"),
-                    "chunk_id": item.get("chunk_id"),
-                    "tool_used": item.get("tool_used"),
-                    "url": item.get("url"),
-                    "content_preview": item.get("content", "")[:400],
-                }
-            )
+            parts = []
+
+            if item.title:
+                parts.append(item.title)
+
+            if item.page is not None:
+                parts.append(f"page {item.page}")
+
+            if item.url:
+                parts.append(item.url)
+
+            source_detail = " | ".join(parts) if parts else "Unknown source"
+            source_lines.append(f"- [{item.evidence_id}] {source_detail}")
+
+    source_list = "\n".join(source_lines) if source_lines else "No sources available."
 
     system_prompt = """
-    You are a revision agent for an autonomous research system.
+You are a revision agent for an autonomous research system.
 
-    Your job is to fix specific issues identified by a critic.
+Your job is to fix only the specific issues identified by the critic.
 
-    Rules:
-    - ONLY fix the issues mentioned in the critic feedback
-    - DO NOT rewrite the entire answer unnecessarily
-    - DO NOT introduce new claims or sources
-    - Use only the provided evidence
-    - Preserve all correct parts of the original answer
-    - If evidence is limited, explicitly say so
+Rules:
+- Use ONLY the provided evidence.
+- Do NOT introduce new claims or sources.
+- Do NOT rewrite the entire answer unnecessarily.
+- Preserve correct content from the original answer.
+- Preserve citation IDs exactly, such as [doc_1] or [web_2].
+- Every major factual claim must include a citation ID.
+- Keep or restore the "## Sources" section.
+- If evidence is insufficient, clearly say so.
+- Remove any claim that is not supported by the evidence.
 
-    Goal:
-    Produce a corrected version of the answer, not a completely new one.
-    """
+Goal:
+Produce a corrected final answer that is grounded, citation-supported, and responsive to the original query.
+"""
 
     human_prompt = f"""
-Original Query:
+Original User Query:
 {query}
 
 Original Final Answer:
@@ -326,7 +335,10 @@ Critic Feedback:
 {critic_feedback}
 
 Evidence:
-{json.dumps(compact_evidence, indent=2)}
+{evidence_context}
+
+Available Sources:
+{source_list}
 """
 
     response = llm.invoke(

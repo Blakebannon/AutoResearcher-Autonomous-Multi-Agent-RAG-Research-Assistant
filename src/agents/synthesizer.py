@@ -1,77 +1,112 @@
-import json
 import os
 
 from dotenv import load_dotenv
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_groq import ChatGroq
-from langchain_core.messages import SystemMessage, HumanMessage
+
+from src.graph.state import AgentState
+from src.schemas.evidence import Evidence
 
 load_dotenv()
 
 
-def get_llm():
+def get_synthesizer_llm():
     return ChatGroq(
         model="llama-3.3-70b-versatile",
         temperature=0.2,
-        max_tokens=1800,
+        max_tokens=2200,
         api_key=os.getenv("GROQ_API_KEY"),
     )
 
 
-def synthesizer_node(state):
-    llm = get_llm()
+def build_source_list(evidence: list[Evidence]) -> str:
+    if not evidence:
+        return "No sources available."
+
+    source_lines = []
+
+    for item in evidence:
+        parts = []
+
+        if item.title:
+            parts.append(item.title)
+
+        if item.page is not None:
+            parts.append(f"page {item.page}")
+
+        if item.url:
+            parts.append(item.url)
+
+        source_detail = " | ".join(parts) if parts else "Unknown source"
+
+        source_lines.append(f"- [{item.evidence_id}] {source_detail}")
+
+    return "\n".join(source_lines)
+
+
+def synthesizer_node(state: AgentState) -> dict:
+    llm = get_synthesizer_llm()
 
     query = state["query"]
-    research_summary = state["research_summary"]
-    evidence = state["evidence"]
+    research_summary = state.get("research_summary", "")
+    evidence_context = state.get("evidence_context", "")
+    evidence = state.get("evidence", [])
+    errors = state.get("errors", [])
 
-    # Keep evidence volume under control
-    compact_evidence = []
-    for item in evidence[:12]:
-        compact_evidence.append(
-            {
-                "source": item.get("source"),
-                "chunk_id": item.get("chunk_id"),
-                "tool_used": item.get("tool_used"),
-                "url": item.get("url"),
-            }
-        )
+    source_list = build_source_list(evidence)
 
     system_prompt = """
-    You are the final synthesis agent for an autonomous research system.
+You are the synthesizer agent in an autonomous multi-agent research system.
 
-    Your job is to produce a clear, grounded answer to the user's query.
+Your job is to produce the final user-facing answer using the research summary and evidence.
 
-    STRICT RULES:
-    - Use ONLY the provided research summary and evidence
-    - DO NOT introduce any facts, organizations, or sources not present in the evidence
-    - If a source is not explicitly in the evidence, do not mention it
-    - If evidence is incomplete or uncertain, explicitly say so
-    - Do not guess or generalize beyond the evidence
-    - Prefer precise, cautious statements over confident speculation
+Rules:
+- Use ONLY the provided research summary and evidence.
+- Do NOT invent facts.
+- Every major factual claim must include a citation ID, such as [doc_1] or [web_2].
+- Use citation IDs exactly as provided.
+- If the evidence does not support a claim, do not include that claim.
+- If evidence is incomplete or conflicting, clearly say so.
+- Write in a clear, concise, professional style.
+- Do not cite sources that are not relevant to the specific claim.
+- Include a Sources section at the end.
 
-    STYLE:
-    - Be clear and structured
-    - Avoid unnecessary verbosity
-    - Do not mention "research summary" or "evidence" in your answer
-    - Produce only the final answer
-    """
+Required output format:
+
+## Final Answer
+
+Your answer with inline citations.
+
+## Sources
+
+- [doc_1] Source title or URL
+- [web_1] Source title or URL
+"""
 
     human_prompt = f"""
-User Query:
+Original User Query:
 {query}
 
 Research Summary:
 {research_summary}
 
-Evidence Metadata:
-{json.dumps(compact_evidence, indent=2)}
+Evidence:
+{evidence_context}
+
+Available Sources:
+{source_list}
+
+Retrieval Errors:
+{errors}
 """
 
-    response = llm.invoke([
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=human_prompt),
-    ])
+    response = llm.invoke(
+        [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=human_prompt),
+        ]
+    )
 
     return {
-        "final_answer": response.content
+        "final_answer": response.content,
     }

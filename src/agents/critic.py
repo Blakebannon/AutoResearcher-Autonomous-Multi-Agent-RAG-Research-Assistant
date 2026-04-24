@@ -2,72 +2,102 @@ import json
 import os
 
 from dotenv import load_dotenv
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_groq import ChatGroq
-from langchain_core.messages import SystemMessage, HumanMessage
+
+from src.graph.state import AgentState
 
 load_dotenv()
 
 
-def get_llm():
+def get_critic_llm():
     return ChatGroq(
         model="llama-3.3-70b-versatile",
         temperature=0,
-        max_tokens=800,
+        max_tokens=1200,
         api_key=os.getenv("GROQ_API_KEY"),
     )
 
 
-def critic_node(state):
-    llm = get_llm()
+def parse_critic_response(raw_text: str) -> dict:
+    try:
+        cleaned = raw_text.strip()
+
+        if cleaned.startswith("```json"):
+            cleaned = cleaned.removeprefix("```json").removesuffix("```").strip()
+        elif cleaned.startswith("```"):
+            cleaned = cleaned.removeprefix("```").removesuffix("```").strip()
+
+        parsed = json.loads(cleaned)
+
+        return {
+            "needs_revision": bool(parsed.get("needs_revision", True)),
+            "critic_feedback": parsed.get(
+                "critic_feedback",
+                "Critic response did not include feedback.",
+            ),
+        }
+
+    except Exception:
+        return {
+            "needs_revision": True,
+            "critic_feedback": (
+                "Critic response could not be parsed as valid JSON. "
+                "Raw response: " + raw_text[:800]
+            ),
+        }
+
+
+def critic_node(state: AgentState) -> dict:
+    llm = get_critic_llm()
 
     query = state["query"]
-    research_summary = state["research_summary"]
-    final_answer = state["final_answer"]
-    evidence = state["evidence"]
-
-    compact_evidence = []
-    for item in evidence[:8]:
-        compact_evidence.append(
-            {
-                "source": item.get("source"),
-                "chunk_id": item.get("chunk_id"),
-                "tool_used": item.get("tool_used"),
-                "url": item.get("url"),
-                "content_preview": item.get("content", "")[:400],
-            }
-        )
+    final_answer = state.get("final_answer", "")
+    research_summary = state.get("research_summary", "")
+    evidence_context = state.get("evidence_context", "")
+    errors = state.get("errors", [])
 
     system_prompt = """
-    You are a strict but practical reviewer for an autonomous research assistant.
+You are the critic/reviewer agent in an autonomous research system.
 
-    Your job is to determine whether the final answer is acceptable or needs revision.
+Your job is to evaluate whether the final answer is sufficiently grounded,
+complete, and properly cited.
 
-    Evaluate based on:
-    1. Groundedness — Are claims supported by the evidence?
-    2. Completeness — Does it sufficiently answer the query?
-    3. Accuracy — Any contradictions or incorrect claims?
-    4. Clarity — Is the answer understandable and logically structured?
+Evaluate these criteria:
 
-    Rules:
-    - DO NOT request revision for minor wording or style issues
-    - DO NOT request revision if the answer is already useful and mostly correct
-    - ONLY request revision if there is a meaningful problem
+1. Groundedness
+- Does the final answer use only the provided evidence?
+- Are there unsupported claims?
 
-    Decision criteria:
-    - If the answer has unsupported claims → needs_revision = true
-    - If the answer misses major parts of the query → needs_revision = true
-    - Otherwise → needs_revision = false
+2. Citation Integrity
+- Does every major factual claim include a citation ID such as [doc_1] or [web_2]?
+- Do the cited evidence blocks actually support the claims?
+- Are citations used accurately and not decoratively?
 
-    Return ONLY valid JSON:
+3. Completeness
+- Does the answer address the user's original query?
+- Are important caveats or evidence gaps mentioned?
 
-    {
-     "needs_revision": true or false,
-     "critic_feedback": "Short, precise explanation of what should be fixed (if any)."
-    }
-    """
+4. Safety Against Hallucination
+- Does the answer avoid adding facts that are not present in the evidence?
+- Does it avoid overclaiming beyond what the evidence supports?
+
+Return ONLY valid JSON with this exact schema:
+
+{
+  "needs_revision": true,
+  "critic_feedback": "Specific explanation of what must be fixed."
+}
+
+Set "needs_revision" to false only if the answer is grounded, adequately complete,
+and citation-supported.
+
+If revision is needed, be specific and concise. Mention exactly what the revision
+agent should fix.
+"""
 
     human_prompt = f"""
-Original Query:
+Original User Query:
 {query}
 
 Research Summary:
@@ -77,23 +107,17 @@ Final Answer:
 {final_answer}
 
 Evidence:
-{json.dumps(compact_evidence, indent=2)}
+{evidence_context}
+
+Retrieval Errors:
+{errors}
 """
 
-    response = llm.invoke([
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=human_prompt),
-    ])
+    response = llm.invoke(
+        [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=human_prompt),
+        ]
+    )
 
-    try:
-        parsed = json.loads(response.content)
-        needs_revision = bool(parsed.get("needs_revision", False))
-        critic_feedback = parsed.get("critic_feedback", "")
-    except Exception as e:
-        needs_revision = False
-        critic_feedback = f"Critic JSON parse failed; defaulting to no revision. Error: {str(e)}"
-
-    return {
-        "needs_revision": needs_revision,
-        "critic_feedback": critic_feedback,
-    }
+    return parse_critic_response(response.content)
