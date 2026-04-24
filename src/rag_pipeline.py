@@ -7,9 +7,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 
 from src.utils import get_embeddings, get_llm
-from src.utils.paths import DATA_DIR, CHROMA_DIR
+from src.app_utils.paths import DATA_DIR, CHROMA_DIR
 
-from src.utils.paths import CHROMA_DIR
 if not CHROMA_DIR.exists() or not any(CHROMA_DIR.iterdir()):
     st.warning("No vector database found. Please upload and index documents.")
 
