@@ -28,7 +28,6 @@ class AgentState(TypedDict):
     query: str
     tasks: List[ResearchTask]
 
-    # Week 5 evidence layer
     evidence: List[Evidence]
     evidence_context: str
 
@@ -43,3 +42,5 @@ class AgentState(TypedDict):
 
     needs_revision: bool
     critic_feedback: str
+
+    evaluation: dict

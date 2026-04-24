@@ -29,6 +29,20 @@ def print_route_log(route_log: list[str]) -> None:
         print(f"- {item}")
 
 
+def print_evaluation(evaluation: dict) -> None:
+    if not evaluation:
+        print("No evaluation available.")
+        return
+
+    print(f"Groundedness: {evaluation.get('groundedness_score')}")
+    print(f"Citations: {evaluation.get('citation_score')}")
+    print(f"Completeness: {evaluation.get('completeness_score')}")
+    print(f"Clarity: {evaluation.get('clarity_score')}")
+    print(f"Overall: {evaluation.get('overall_score')}")
+    print("Judge feedback:")
+    print(evaluation.get("judge_feedback", ""))
+
+
 def main():
     vectorstore = load_vectorstore()
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
@@ -41,6 +55,7 @@ def main():
         "query": query,
         "tasks": [],
         "evidence": [],
+        "evidence_context": "",
         "research_summary": "",
         "final_answer": "",
         "route_log": [],
@@ -49,6 +64,7 @@ def main():
         "max_iterations": 1,
         "needs_revision": False,
         "critic_feedback": "",
+        "evaluation": {},
     }
 
     section("STREAMING WORKFLOW")
@@ -63,6 +79,13 @@ def main():
 
             if "evidence" in node_output:
                 print(f"Evidence collected: {len(node_output['evidence'])}")
+
+                for item in node_output["evidence"]:
+                    score = getattr(item, "relevance_score", None)
+                    title = getattr(item, "title", "Unknown source")
+                    evidence_id = getattr(item, "evidence_id", "unknown")
+
+                    print(f"- [{evidence_id}] score={score} | {title}")
 
             if "research_summary" in node_output:
                 summary = node_output["research_summary"]
@@ -84,6 +107,7 @@ def main():
                 print("Errors:")
                 for err in node_output["errors"]:
                     print(f"- {err}")
+
             if "needs_revision" in node_output:
                 print(f"Needs revision: {node_output['needs_revision']}")
 
@@ -93,6 +117,10 @@ def main():
 
             if "iteration" in node_output:
                 print(f"Iteration: {node_output['iteration']}")
+
+            if "evaluation" in node_output:
+                print("Evaluation:")
+                print_evaluation(node_output["evaluation"])
 
     # Run once more for clean final state + logging.
     result = app.invoke(initial_state)
@@ -104,7 +132,21 @@ def main():
     print_tasks(result.get("tasks", []))
 
     section("EVIDENCE COUNT")
-    print(len(result.get("evidence", [])))
+    evidence = result.get("evidence", [])
+    print(len(evidence))
+
+    if evidence:
+        section("EVIDENCE USED")
+        for item in evidence:
+            score = getattr(item, "relevance_score", None)
+            title = getattr(item, "title", "Unknown source")
+            evidence_id = getattr(item, "evidence_id", "unknown")
+            source_type = getattr(item, "source_type", "unknown")
+            url = getattr(item, "url", None)
+
+            print(f"- [{evidence_id}] {source_type} | score={score} | {title}")
+            if url:
+                print(f"  URL: {url}")
 
     section("RESEARCH SUMMARY PREVIEW")
     summary = result.get("research_summary", "")
@@ -121,6 +163,9 @@ def main():
     print(f"Iteration count: {result.get('iteration', 0)}")
     print("Critic feedback:")
     print(result.get("critic_feedback", ""))
+
+    section("LLM-AS-JUDGE EVALUATION")
+    print_evaluation(result.get("evaluation", {}))
 
     errors = result.get("errors", [])
     if errors:

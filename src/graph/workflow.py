@@ -14,6 +14,7 @@ from src.agents.planner import planner_node
 from src.agents.researcher import researcher_node
 from src.agents.synthesizer import synthesizer_node
 from src.retrieval.reranker import rerank_evidence
+from src.evaluation.judge import judge_node
 from src.graph.state import AgentState
 from src.tools.tools import (
     create_document_retriever_tool,
@@ -377,6 +378,8 @@ def build_workflow(retriever):
     graph.add_node("synthesize", synthesizer_node)
     graph.add_node("critic", critic_node)
     graph.add_node("revise", revision_node)
+    graph.add_node("judge", judge_node)
+    
 
     graph.add_edge(START, "planner")
     graph.add_edge("planner", "retrieve")
@@ -386,13 +389,15 @@ def build_workflow(retriever):
 
     graph.add_conditional_edges(
         "critic",
-        route_after_critic,
-        {
-            "revise": "revise",
-            "end": END,
-        },
-    )
+    route_after_critic,
+    {
+        "revise": "revise",
+        "end": "judge",
+    },
+)
 
     graph.add_edge("revise", "critic")
+    graph.add_edge("judge", END)
+    
 
     return graph.compile()
