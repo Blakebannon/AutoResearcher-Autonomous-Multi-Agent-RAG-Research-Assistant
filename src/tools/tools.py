@@ -14,7 +14,11 @@ def create_document_retriever_tool(retriever):
         Search the user's uploaded documents and return relevant content
         with source and chunk metadata.
         """
+
         docs = retriever.invoke(query)
+
+        if not docs:
+            return "No relevant document evidence found."
 
         results = []
 
@@ -22,9 +26,20 @@ def create_document_retriever_tool(retriever):
             source = doc.metadata.get("source", "unknown_document")
             chunk_id = doc.metadata.get("chunk_id", "unknown_chunk")
 
+            # 🔍 DEBUG (safe for logs, remove later if desired)
+            print("RETRIEVED SOURCE:", source)
+
+            # ✅ HARD FILTER: only allow PDFs
+            if not str(source).lower().endswith(".pdf"):
+                continue
+
             results.append(
                 f"[SOURCE: {source} | CHUNK: {chunk_id}]\n{doc.page_content}"
             )
+
+        # 🚨 If everything got filtered out
+        if not results:
+            return "No valid PDF-based evidence found in retrieval."
 
         return "\n\n".join(results)
 

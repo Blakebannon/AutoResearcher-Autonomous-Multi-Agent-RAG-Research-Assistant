@@ -24,8 +24,12 @@ def is_summary_query(query: str) -> bool:
 # Document Loading
 # -----------------------------
 def load_documents():
-    loader = PyPDFDirectoryLoader(str(DATA_DIR))
-    return loader.load()
+    loader = PyPDFDirectoryLoader(
+        str(DATA_DIR),
+        glob="**/*.pdf"   # only load PDFs recursively
+    )
+    docs = loader.load()
+    return docs
 
 
 # -----------------------------
@@ -59,12 +63,21 @@ def split_documents(docs):
 
     chunks = splitter.split_documents(docs)
 
+    filtered_chunks = []
+
     for i, chunk in enumerate(chunks):
-        chunk.metadata["chunk_id"] = i
         source = chunk.metadata.get("source", "unknown_document")
+
+        # ✅ Only keep PDF chunks
+        if not source.lower().endswith(".pdf"):
+            continue
+
+        chunk.metadata["chunk_id"] = i
         chunk.metadata["source"] = source.replace("\\", "/")
 
-    return chunks
+        filtered_chunks.append(chunk)
+
+    return filtered_chunks
 
 
 # -----------------------------
