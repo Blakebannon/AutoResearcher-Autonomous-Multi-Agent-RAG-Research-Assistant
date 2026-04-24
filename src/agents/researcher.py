@@ -1,63 +1,80 @@
-import json
-from langchain_groq import ChatGroq
-from langchain_core.messages import SystemMessage, HumanMessage
 import os
+
 from dotenv import load_dotenv
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_groq import ChatGroq
+
+from src.graph.state import AgentState
 
 load_dotenv()
 
 
-def get_llm():
+def get_researcher_llm():
     return ChatGroq(
         model="llama-3.3-70b-versatile",
         temperature=0.2,
-        max_tokens=1500,
+        max_tokens=1800,
         api_key=os.getenv("GROQ_API_KEY"),
     )
 
 
-def researcher_node(state):
-    llm = get_llm()
+def researcher_node(state: AgentState) -> dict:
+    llm = get_researcher_llm()
 
     query = state["query"]
-    tasks = state["tasks"]
-    evidence = state["evidence"]
-
-    # Convert to compact JSON to control tokens
-    evidence_json = json.dumps(evidence[:10])  # cap to avoid token explosion
+    tasks = state.get("tasks", [])
+    evidence_context = state.get("evidence_context", "")
+    errors = state.get("errors", [])
 
     system_prompt = """
-You are a research analyst.
+You are the research agent in a multi-agent RAG system.
 
-Your job is to analyze retrieved evidence and produce a structured research summary.
+Your job is to analyze the provided evidence and produce a structured research summary.
 
-Instructions:
-- Organize findings by subquestion
-- Highlight key insights
-- Remove redundant information
-- Note if evidence is weak or missing
-- DO NOT make up information not present in the evidence
-- DO NOT produce a final answer to the user
+Rules:
+- Use ONLY the provided evidence.
+- Do NOT invent facts.
+- Preserve citation IDs exactly as shown, such as [doc_1] or [web_2].
+- Every major factual claim should include at least one evidence ID.
+- If evidence is weak, incomplete, or conflicting, say so.
+- Do not produce the final answer. Produce research notes for the synthesizer.
 
-Return a clean, well-structured research summary.
+Output format:
+
+## Research Summary
+
+## Key Findings
+- Finding with citation ID
+- Finding with citation ID
+
+## Evidence Gaps
+- Missing or insufficient evidence
+
+## Recommended Answer Direction
+Briefly explain what the final answer should emphasize.
 """
 
     human_prompt = f"""
-User Query:
+Original User Query:
 {query}
 
 Research Tasks:
-{json.dumps(tasks, indent=2)}
+{tasks}
 
 Evidence:
-{evidence_json}
+{evidence_context}
+
+Retrieval Errors:
+{errors}
 """
 
-    response = llm.invoke([
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=human_prompt),
-    ])
+    response = llm.invoke(
+        [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=human_prompt),
+        ]
+    )
 
     return {
-        "research_summary": response.content
+        "research_summary": response.content,
     }
