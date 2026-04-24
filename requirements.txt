@@ -15,3 +15,5 @@ numpy
 plotly
 protobuf<4
 langchain-huggingface
+langchain-tavily
+tavily-python
