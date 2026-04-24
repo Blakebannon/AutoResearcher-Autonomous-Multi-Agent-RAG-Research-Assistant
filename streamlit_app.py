@@ -1,7 +1,12 @@
 import streamlit as st
 from pathlib import Path
 
-from src.rag_pipeline import load_documents, split_documents, build_vectorstore
+from src.rag_pipeline import (
+    load_documents,
+    split_documents,
+    build_vectorstore,
+    get_or_create_vectorstore,  # ✅ added
+)
 from src.services.research_service import research
 from src.config import validate_required_keys
 from src.app_utils.paths import ensure_directories
@@ -155,9 +160,8 @@ with st.sidebar:
             with st.spinner("Saving uploaded files and rebuilding vector store..."):
                 saved_files = save_uploaded_files(uploaded_files)
 
-                docs = load_documents()
-                chunks = split_documents(docs)
-                build_vectorstore(chunks)
+                # ✅ FORCE REBUILD
+                vectorstore = get_or_create_vectorstore(force_rebuild=True)
 
             st.success(f"Uploaded and indexed {len(saved_files)} file(s).")
 
@@ -169,9 +173,7 @@ with st.sidebar:
 
     if st.button("Reindex Existing Documents in /data"):
         with st.spinner("Loading and indexing documents..."):
-            docs = load_documents()
-            chunks = split_documents(docs)
-            build_vectorstore(chunks)
+            vectorstore = get_or_create_vectorstore(force_rebuild=True)
         st.success("Documents indexed successfully!")
 
     st.divider()
@@ -201,6 +203,13 @@ run_button = st.button("Run AutoResearcher", type="primary")
 if run_button:
     if not query.strip():
         st.warning("Please enter a research question.")
+        st.stop()
+
+    # 🚨 GUARDRAIL ADDED HERE
+    vectorstore = get_or_create_vectorstore()
+
+    if vectorstore._collection.count() == 0:
+        st.warning("⚠️ No documents indexed. Please upload and index files first.")
         st.stop()
 
     with st.spinner("Running multi-agent research workflow..."):
@@ -257,18 +266,10 @@ if run_button:
                         st.metric("Source Type", source_type)
 
                     with col2:
-                        if relevance_score is not None:
-                            st.metric("Relevance", format_score(relevance_score))
-                        else:
-                            st.metric("Relevance", "N/A")
+                        st.metric("Relevance", format_score(relevance_score))
 
                     with col3:
-                        if page is not None:
-                            st.metric("Page", page)
-                        elif chunk_id is not None:
-                            st.metric("Chunk", chunk_id)
-                        else:
-                            st.metric("Location", "N/A")
+                        st.metric("Page", page if page is not None else chunk_id)
 
                     if url:
                         st.markdown(f"[Open web source]({url})")
@@ -276,61 +277,3 @@ if run_button:
                     if content:
                         st.markdown("**Preview**")
                         st.write(content[:1500])
-
-    with tab_critic:
-        critic = result.get("critic", {})
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.metric("Needs Revision", str(critic.get("needs_revision", False)))
-
-        with col2:
-            st.metric("Iteration Count", critic.get("iteration", 0))
-
-        st.markdown("**Critic Feedback**")
-        st.write(critic.get("critic_feedback", "No critic feedback returned."))
-
-    with tab_judge:
-        evaluation = result.get("evaluation", {})
-
-        col1, col2, col3, col4, col5 = st.columns(5)
-
-        with col1:
-            st.metric("Groundedness", format_score(evaluation.get("groundedness_score", "N/A")))
-
-        with col2:
-            st.metric("Citations", format_score(evaluation.get("citation_score", "N/A")))
-
-        with col3:
-            st.metric("Completeness", format_score(evaluation.get("completeness_score", "N/A")))
-
-        with col4:
-            st.metric("Clarity", format_score(evaluation.get("clarity_score", "N/A")))
-
-        with col5:
-            st.metric("Overall", format_score(evaluation.get("overall_score", "N/A")))
-
-        st.markdown("**Judge Feedback**")
-        st.write(evaluation.get("judge_feedback", "No judge feedback returned."))
-
-    with tab_trace:
-        st.markdown("**Planner Tasks**")
-        st.json(result.get("tasks", []))
-
-        st.markdown("**Route Log**")
-        st.write(result.get("route_log", []))
-
-        with st.expander("Raw State"):
-            st.json(result.get("raw_state", {}), expanded=False)
-
-    report = build_markdown_report(result)
-
-    st.divider()
-
-    st.download_button(
-        label="Download Research Report",
-        data=report,
-        file_name="autoresearcher_report.md",
-        mime="text/markdown",
-    )
