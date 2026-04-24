@@ -13,3 +13,4 @@ python-dotenv
 pandas
 numpy
 plotly
+protobuf<4
