@@ -14,3 +14,4 @@ pandas
 numpy
 plotly
 protobuf<4
+langchain-huggingface
